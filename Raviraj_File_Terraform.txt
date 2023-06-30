@@ -1,0 +1,1549 @@
+[root@master terafom_lab_26062023]# ls -l
+total 12
+drwxr-xr-x 3 root root   173 Jun 30 12:01 aws_web
+drwxr-xr-x 3 root root   123 Jun 26 17:21 azure_vm
+drwxr-xr-x 3 root root   192 Jun 29 17:06 azure_vm_excercise
+drwxr-xr-x 3 root root   202 Jun 27 17:25 azure_vm_foreach
+drwxr-xr-x 3 root root   202 Jun 29 13:02 azure_vm_ifelse
+drwxr-xr-x 3 root root   123 Jun 28 17:13 azure_vm_import
+drwxr-xr-x 3 root root    91 Jun 28 17:16 azure_vm_importrg
+drwxr-xr-x 3 root root   202 Jun 27 16:39 azure_vm_loop
+drwxr-xr-x 3 root root   202 Jun 27 15:34 azure_vm_prov
+drwxr-xr-x 3 root root   145 Jun 28 15:31 azure_vm_remotestate
+drwxr-xr-x 3 root root   215 Jun 28 13:20 azure_vm_template
+drwxr-xr-x 3 root root   202 Jun 29 12:50 azure_vm_vars
+drwxr-xr-x 4 root root   172 Jun 29 14:51 azure_vm_workspace
+drwxr-xr-x 2 root root   167 Jun 23 17:39 terraform_azure_access_26062023
+-rw-r--r-- 1 root root 11826 Jun 24 18:25 terraform_azure_access_26062023.zip
+drwxr-xr-x 4 root root    46 Jun 29 10:27 terraform_azure_module
+[root@master terafom_lab_26062023]# cd azure_vm
+[root@master azure_vm]# ls -l
+total 20
+-rw-r--r-- 1 root root 2153 Jun 26 17:19 main.tf
+-rw-r--r-- 1 root root  181 Jun 26 17:21 terraform.tfstate
+-rw-r--r-- 1 root root 9679 Jun 26 17:21 terraform.tfstate.backup
+[root@master azure_vm]# cat main.tf
+terraform {
+  required_providers {
+    azurerm = {
+      source = "hashicorp/azurerm"
+      version = "3.62.1"
+    }
+  }
+}
+
+provider "azurerm" {
+  features {}
+  client_id                   = "da7f7cdf-7635-424a-b0ea-dfe73d494f0b"
+  client_certificate_path     = "/terafom_lab_26062023/terraform_azure_access_26062023/mycert.pfx"
+  tenant_id                   = "df8af829-df8a-41fe-8679-3e0a616165c5"
+  subscription_id             = "e7f340c5-89ac-403d-82ed-0571261dea04"
+}
+
+resource "azurerm_resource_group" "example" {
+  name  =   "raviraj-rg"
+  location = "South India"
+}
+
+resource "azurerm_virtual_network" "example" {
+  name                = "raviraj-vnet"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+}
+
+resource "azurerm_subnet" "example" {
+  name                 = "raviraj-snet"
+  resource_group_name  = azurerm_resource_group.example.name
+  virtual_network_name = azurerm_virtual_network.example.name
+  address_prefixes     = ["10.0.2.0/24"]
+}
+
+resource "azurerm_network_interface" "example" {
+  name                = "raviraj-nic"
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.example.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "example" {
+  name                = "raviraj-vm"
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  size                = "Standard_F2"
+  admin_username      = "adminuser"
+  admin_password      = "P@ssw0rd1"
+  disable_password_authentication = false
+  network_interface_ids = [
+    azurerm_network_interface.example.id,
+  ]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "18.04-LTS"
+    version   = "latest"
+  }
+}
+
+[root@master azure_vm]# cd ../azure_vm_foreach
+[root@master azure_vm_foreach]# ls
+main.tf  myfile  out.tf  provider.tf  script.sh  terraform.tfstate  terraform.tfstate.backup  vars.tf
+[root@master azure_vm_foreach]# cat provider.tf
+terraform {
+  required_providers {
+    azurerm = {
+      source = "hashicorp/azurerm"
+      version = "3.62.1"
+    }
+  }
+}
+
+provider "azurerm" {
+  features {}
+  client_id                   = var.client_id
+  client_certificate_path     = var.client_certificate_path
+  tenant_id                   = var.tenant_id
+  subscription_id             = var.subscription_id
+}
+[root@master azure_vm_foreach]# cat out.tf
+output "MyPublicIP0" {
+  value = azurerm_linux_virtual_machine.example["F1"].public_ip_address
+}
+
+output "MyPublicIP1" {
+  value = azurerm_linux_virtual_machine.example["F2"].public_ip_address
+}
+[root@master azure_vm_foreach]# cat script.sh
+sleep 10
+echo Starting...
+sleep 10
+echo I am coming from script
+sleep 10
+echo Finishing...
+[root@master azure_vm_foreach]# cat main.tf
+resource "azurerm_resource_group" "example" {
+  name  =   "${var.prefix}-rg"
+  location = var.location
+}
+
+resource "azurerm_virtual_network" "example" {
+  name                = "${var.prefix}-vn"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+}
+
+resource "azurerm_subnet" "example" {
+  name                 = "${var.prefix}-sn"
+  resource_group_name  = azurerm_resource_group.example.name
+  virtual_network_name = azurerm_virtual_network.example.name
+  address_prefixes     = ["10.0.2.0/24"]
+}
+
+#azurerm_public_ip.example["F1"]
+#azurerm_public_ip.example["F2"]
+resource "azurerm_public_ip" "example" {
+  for_each = toset(["F1", "F2"])
+  name                = "${var.prefix}-${each.key}-pip"
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  allocation_method   = "Static"
+}
+
+#azurerm_network_interface.example["F1"]
+#azurerm_network_interface.example["F2"]
+resource "azurerm_network_interface" "example" {
+  for_each = toset(["F1", "F2"])
+  name                = "${var.prefix}-${each.key}-nic"
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.example.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.example[each.key].id
+  }
+}
+
+#azurerm_linux_virtual_machine.example["F1"]
+#azurerm_linux_virtual_machine.example["F2"]
+#sagar-F1-vm, sagar-F2-vm
+resource "azurerm_linux_virtual_machine" "example" {
+  for_each = toset(["F1", "F2"])
+  name                = "${var.prefix}-${each.key}-vm"
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  size                = "Standard_${each.key}"
+  admin_username      = var.admin_username
+  admin_password      = var.admin_password
+  disable_password_authentication = false
+  network_interface_ids = [
+    azurerm_network_interface.example[each.key].id,
+  ]
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "18.04-LTS"
+    version   = "latest"
+  }
+
+provisioner "local-exec" {
+    command = "echo ${self.public_ip_address} > myfile"
+  }
+
+  provisioner "local-exec" {
+    command = "echo sleep 10 > script.sh ; echo echo Starting... >> script.sh ; echo sleep 10 >> script.sh ; echo echo I am     coming from script >> script.sh ; echo sleep 10 >> script.sh ; echo echo Finishing... >> script.sh "
+  }
+
+  provisioner "file" {
+    source = "script.sh"
+    destination = "/tmp/script.sh"
+    connection {
+      type = "ssh"
+      user = var.admin_username
+      password = var.admin_password
+      host = self.public_ip_address
+    }
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x /tmp/script.sh",
+      "/bin/sh /tmp/script.sh",
+    ]
+    connection {
+      type = "ssh"
+      user = var.admin_username
+      password = var.admin_password
+      host = self.public_ip_address
+    }
+  }
+}
+
+resource "azurerm_managed_disk" "example" {
+    name                 = "raviraj-disk"
+    location             = azurerm_resource_group.example.location
+    resource_group_name  = azurerm_resource_group.example.name
+    storage_account_type = "Standard_LRS"
+    create_option        = "Empty"
+    disk_size_gb         = "1"
+  }
+
+[root@master azure_vm_foreach]#
+[root@master azure_vm_foreach]# cd ..
+[root@master terafom_lab_26062023]# cd azure_vm_ifelse
+[root@master azure_vm_ifelse]# ls
+main.tf  myfile  out.tf  provider.tf  script.sh  terraform.tfstate  terraform.tfstate.backup  vars.tf
+[root@master azure_vm_ifelse]# cat vars.tf
+variable "client_id" {
+  default = "da7f7cdf-7635-424a-b0ea-dfe73d494f0b"
+}
+
+variable "client_certificate_path" {
+  default = "/terafom_lab_26062023/terraform_azure_access_26062023/mycert.pfx"
+}
+
+variable "tenant_id" {
+  default = "df8af829-df8a-41fe-8679-3e0a616165c5"
+}
+
+variable "subscription_id" {
+  default = "e7f340c5-89ac-403d-82ed-0571261dea04"
+}
+
+variable "prefix" {
+  default = "raviraj"
+}
+
+variable "location" {
+  default = "Central India"
+}
+
+variable "size" {
+  default = "Standard_F2"
+}
+
+variable "admin_username" {
+  default = "adminuser"
+}
+
+variable "admin_password" {
+  default = "P@ssw0rd1"
+}
+
+variable "env" {
+}
+
+[root@master azure_vm_ifelse]#
+[root@master azure_vm_ifelse]# cat main.tf
+resource "azurerm_resource_group" "example" {
+  name  =   "${var.prefix}-rg"
+  location = var.location
+}
+
+resource "azurerm_virtual_network" "example" {
+  name                = "${var.prefix}-vn"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+}
+
+resource "azurerm_subnet" "example" {
+  name                 = "${var.prefix}-sn"
+  resource_group_name  = azurerm_resource_group.example.name
+  virtual_network_name = azurerm_virtual_network.example.name
+  address_prefixes     = ["10.0.2.0/24"]
+}
+
+resource "azurerm_public_ip" "example" {
+  count = "${ var.env == "prd" ? 2 : var.env == "dev" ? 1 : 0 }"
+  name                = "${var.prefix}-${count.index}-pip"
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  allocation_method   = "Static"
+}
+
+resource "azurerm_network_interface" "example" {
+  count = "${ var.env == "prd" ? 2 : var.env == "dev" ? 1 : 0 }"
+  name                = "${var.prefix}-${count.index}-nic"
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.example.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.example[count.index].id
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "example" {
+  count = "${ var.env == "prd" ? 2 : var.env == "dev" ? 1 : 0 }"
+  name                = "${var.prefix}-${count.index}-vm"
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  size                = "${ var.env == "prd" ? "Standard_F2" : var.env == "dev" ? "Standard_F1" : "Standard_B1s" }"
+  admin_username      = var.admin_username
+  admin_password      = var.admin_password
+  disable_password_authentication = false
+  network_interface_ids = [
+    azurerm_network_interface.example[count.index].id,
+  ]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "18.04-LTS"
+    version   = "latest"
+  }
+
+provisioner "local-exec" {
+    command = "echo ${self.public_ip_address} > myfile"
+  }
+
+  provisioner "local-exec" {
+    command = "echo sleep 10 > script.sh ; echo echo Starting... >> script.sh ; echo sleep 10 >> script.sh ; echo echo I am     coming from script >> script.sh ; echo sleep 10 >> script.sh ; echo echo Finishing... >> script.sh "
+  }
+
+  provisioner "file" {
+    source = "script.sh"
+    destination = "/tmp/script.sh"
+    connection {
+      type = "ssh"
+      user = var.admin_username
+      password = var.admin_password
+      host = self.public_ip_address
+    }
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x /tmp/script.sh",
+      "/bin/sh /tmp/script.sh",
+    ]
+    connection {
+      type = "ssh"
+      user = var.admin_username
+      password = var.admin_password
+      host = self.public_ip_address
+    }
+  }
+}
+
+resource "azurerm_managed_disk" "example" {
+    name                 = "raviraj-disk"
+    location             = azurerm_resource_group.example.location
+    resource_group_name  = azurerm_resource_group.example.name
+    storage_account_type = "Standard_LRS"
+    create_option        = "Empty"
+    disk_size_gb         = "1"
+  }
+
+[root@master azure_vm_ifelse]#
+[root@master azure_vm_ifelse]# cd ../
+[root@master terafom_lab_26062023]# cd azure_vm_import
+[root@master azure_vm_import]# ls
+main.tf  terraform.tfstate  terraform.tfstate.backup
+[root@master azure_vm_import]# cat main.tf
+terraform {
+  required_providers {
+    azurerm = {
+      source = "hashicorp/azurerm"
+      version = "3.62.1"
+    }
+  }
+}
+
+provider "azurerm" {
+  features {}
+  client_id                   = "da7f7cdf-7635-424a-b0ea-dfe73d494f0b"
+  client_certificate_path     = "/terafom_lab_26062023/terraform_azure_access_26062023/mycert.pfx"
+  tenant_id                   = "df8af829-df8a-41fe-8679-3e0a616165c5"
+  subscription_id             = "e7f340c5-89ac-403d-82ed-0571261dea04"
+}
+resource "azurerm_resource_group" "sample" {
+#     id       = "/subscriptions/e7f340c5-89ac-403d-82ed-0571261dea04/resourceGroups/sagar-rg"
+    location = "centralindia"
+    name     = "sagar-rg"
+    tags     = {}
+}
+
+
+#resource "azurerm_linux_virtual_machine" "sample" {
+#}
+# azurerm_linux_virtual_machine.sample:
+resource "azurerm_linux_virtual_machine" "sample" {
+    admin_password                  = "P@ssword1"
+    admin_username                  = "adminuser"
+    allow_extension_operations      = true
+    computer_name                   = "sagar-vm"
+    disable_password_authentication = false
+    encryption_at_host_enabled      = false
+    extensions_time_budget          = "PT1H30M"
+   #  id                              = "/subscriptions/e7f340c5-89ac-403d-82ed-0571261dea04/resourceGroups/sagar-rg/provide    rs/Microsoft.Compute/virtualMachines/sagar-vm"
+    location                        = "centralindia"
+    max_bid_price                   = -1
+    name                            = "sagar-vm"
+    network_interface_ids           = [
+        "/subscriptions/e7f340c5-89ac-403d-82ed-0571261dea04/resourceGroups/sagar-rg/providers/Microsoft.Network/networkInte    rfaces/sagar-nic",
+    ]
+    patch_assessment_mode           = "ImageDefault"
+    patch_mode                      = "ImageDefault"
+   #  platform_fault_domain           = -1
+    priority                        = "Regular"
+   #  private_ip_address              = "10.0.2.4"
+   #  private_ip_addresses            = [
+   #      "10.0.2.4",
+   #  ]
+    provision_vm_agent              = true
+  #   public_ip_address               = "4.224.62.27"
+  #   public_ip_addresses             = [
+  #       "4.224.62.27",
+  #   ]
+    resource_group_name             = "sagar-rg"
+    secure_boot_enabled             = false
+    size                            = "Standard_F2"
+    tags                            = {}
+  #   virtual_machine_id              = "2182fa22-f8a6-4790-bf23-252037a3b6dc"
+    vtpm_enabled                    = false
+
+    os_disk {
+        caching                   = "ReadWrite"
+        disk_size_gb              = 30
+        name                      = "sagar-vm_disk1_3052fbc968c84a72873a1c1be396963f"
+        storage_account_type      = "Standard_LRS"
+        write_accelerator_enabled = false
+    }
+
+    source_image_reference {
+        offer     = "UbuntuServer"
+        publisher = "Canonical"
+        sku       = "18.04-LTS"
+        version   = "latest"
+    }
+}
+[root@master azure_vm_import]# cd ..
+[root@master terafom_lab_26062023]# cd azure_vm_importrg
+[root@master azure_vm_importrg]# ls
+main.tf  terraform.tfstate
+[root@master azure_vm_importrg]# cat main.tf
+terraform {
+  required_providers {
+    azurerm = {
+      source = "hashicorp/azurerm"
+      version = "3.62.1"
+    }
+  }
+}
+
+provider "azurerm" {
+  features {}
+  client_id                   = "da7f7cdf-7635-424a-b0ea-dfe73d494f0b"
+  client_certificate_path     = "/terafom_lab_26062023/terraform_azure_access_26062023/mycert.pfx"
+  tenant_id                   = "df8af829-df8a-41fe-8679-3e0a616165c5"
+  subscription_id             = "e7f340c5-89ac-403d-82ed-0571261dea04"
+}
+
+#resource "azurerm_resource_group" "sample" {
+#}
+# azurerm_resource_group.sample:
+resource "azurerm_resource_group" "sample" {
+#     id       = "/subscriptions/e7f340c5-89ac-403d-82ed-0571261dea04/resourceGroups/sagar-rg"
+    location = "centralindia"
+    name     = "sagar-rg"
+    tags     = {}
+}
+[root@master azure_vm_importrg]#
+[root@master azure_vm_importrg]# cd ..
+[root@master terafom_lab_26062023]# cd azure_vm_loop
+[root@master azure_vm_loop]# ls
+main.tf  myfile  out.tf  provider.tf  script.sh  terraform.tfstate  terraform.tfstate.backup  vars.tf
+[root@master azure_vm_loop]# cat main.tf
+resource "azurerm_resource_group" "example" {
+  name  =   "${var.prefix}-rg"
+  location = var.location
+}
+
+resource "azurerm_virtual_network" "example" {
+  name                = "${var.prefix}-vn"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+}
+
+resource "azurerm_subnet" "example" {
+  name                 = "${var.prefix}-sn"
+  resource_group_name  = azurerm_resource_group.example.name
+  virtual_network_name = azurerm_virtual_network.example.name
+  address_prefixes     = ["10.0.2.0/24"]
+}
+
+#azurerm_public_ip.example[0]
+#azurerm_public_ip.example[1]
+#azurerm_public_ip.example[2]
+resource "azurerm_public_ip" "example" {
+  count = 3
+  name                = "${var.prefix}-${count.index}-pip"
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  allocation_method   = "Static"
+}
+
+resource "azurerm_network_interface" "example" {
+  count = 3
+  name                = "${var.prefix}-${count.index}-nic"
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.example.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.example[count.index].id
+  }
+}
+
+#azurerm_linux_virtual_machine.example[0]
+#azurerm_linux_virtual_machine.example[1]
+#azurerm_linux_virtual_machine.example[2]
+#sagar-0-vm, sagar-1-vm, sagar-2-vm
+resource "azurerm_linux_virtual_machine" "example" {
+  count = 3
+  name                = "${var.prefix}-${count.index}-vm"
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  size                = var.size
+  admin_username      = var.admin_username
+  admin_password      = var.admin_password
+  disable_password_authentication = false
+  network_interface_ids = [
+    azurerm_network_interface.example[count.index].id,
+  ]
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "18.04-LTS"
+    version   = "latest"
+  }
+
+provisioner "local-exec" {
+    command = "echo ${self.public_ip_address} > myfile"
+  }
+
+  provisioner "local-exec" {
+    command = "echo sleep 10 > script.sh ; echo echo Starting... >> script.sh ; echo sleep 10 >> script.sh ; echo echo I am     coming from script >> script.sh ; echo sleep 10 >> script.sh ; echo echo Finishing... >> script.sh "
+  }
+
+  provisioner "file" {
+    source = "script.sh"
+    destination = "/tmp/script.sh"
+    connection {
+      type = "ssh"
+      user = var.admin_username
+      password = var.admin_password
+      host = self.public_ip_address
+    }
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x /tmp/script.sh",
+      "/bin/sh /tmp/script.sh",
+    ]
+    connection {
+      type = "ssh"
+      user = var.admin_username
+      password = var.admin_password
+      host = self.public_ip_address
+    }
+  }
+}
+
+resource "azurerm_managed_disk" "example" {
+    name                 = "raviraj-disk"
+    location             = azurerm_resource_group.example.location
+    resource_group_name  = azurerm_resource_group.example.name
+    storage_account_type = "Standard_LRS"
+    create_option        = "Empty"
+    disk_size_gb         = "1"
+  }
+
+[root@master azure_vm_loop]# cd ..
+[root@master terafom_lab_26062023]# cd azure_vm_prov
+[root@master azure_vm_prov]# cat main.tf
+resource "azurerm_resource_group" "example" {
+  name  =   "${var.prefix}-rg"
+  location = var.location
+}
+
+resource "azurerm_virtual_network" "example" {
+  name                = "${var.prefix}-vn"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+}
+
+resource "azurerm_subnet" "example" {
+  name                 = "${var.prefix}-sn"
+  resource_group_name  = azurerm_resource_group.example.name
+  virtual_network_name = azurerm_virtual_network.example.name
+  address_prefixes     = ["10.0.2.0/24"]
+}
+
+resource "azurerm_public_ip" "example" {
+  name                = "${var.prefix}-pip"
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  allocation_method   = "Static"
+}
+
+resource "azurerm_network_interface" "example" {
+  name                = "${var.prefix}-nic"
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.example.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.example.id
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "example" {
+  name                = "${var.prefix}-vm"
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  size                = var.size
+  admin_username      = var.admin_username
+  admin_password      = var.admin_password
+  disable_password_authentication = false
+  network_interface_ids = [
+    azurerm_network_interface.example.id,
+  ]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "18.04-LTS"
+    version   = "latest"
+  }
+
+provisioner "local-exec" {
+    command = "echo ${self.public_ip_address} > myfile"
+  }
+
+  provisioner "local-exec" {
+    command = "echo sleep 10 > script.sh ; echo echo Starting... >> script.sh ; echo sleep 10 >> script.sh ; echo echo I am     coming from script >> script.sh ; echo sleep 10 >> script.sh ; echo echo Finishing... >> script.sh "
+  }
+
+  provisioner "file" {
+    source = "script.sh"
+    destination = "/tmp/script.sh"
+    connection {
+      type = "ssh"
+      user = var.admin_username
+      password = var.admin_password
+      host = self.public_ip_address
+    }
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x /tmp/script.sh",
+      "/bin/sh /tmp/script.sh",
+    ]
+    connection {
+      type = "ssh"
+      user = var.admin_username
+      password = var.admin_password
+      host = self.public_ip_address
+    }
+  }
+}
+
+resource "azurerm_managed_disk" "example" {
+    name                 = "raviraj-disk"
+    location             = azurerm_resource_group.example.location
+    resource_group_name  = azurerm_resource_group.example.name
+    storage_account_type = "Standard_LRS"
+    create_option        = "Empty"
+    disk_size_gb         = "1"
+  }
+
+[root@master azure_vm_prov]# cd ..
+[root@master terafom_lab_26062023]# cd azure_vm_remotestate
+[root@master azure_vm_remotestate]# ls
+main.tf  myfile  out.tf  provider.tf  script.sh  vars.tf
+[root@master azure_vm_remotestate]# cat main.tf
+resource "azurerm_resource_group" "example" {
+  name  =   "${var.prefix}-rg"
+  location = var.location
+}
+
+resource "azurerm_virtual_network" "example" {
+  name                = "${var.prefix}-vn"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+}
+
+resource "azurerm_subnet" "example" {
+  name                 = "${var.prefix}-sn"
+  resource_group_name  = azurerm_resource_group.example.name
+  virtual_network_name = azurerm_virtual_network.example.name
+  address_prefixes     = ["10.0.2.0/24"]
+}
+
+resource "azurerm_public_ip" "example" {
+  name                = "${var.prefix}-pip"
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  allocation_method   = "Static"
+}
+
+resource "azurerm_network_interface" "example" {
+  name                = "${var.prefix}-nic"
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.example.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.example.id
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "example" {
+  name                = "${var.prefix}-vm"
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  size                = var.size
+  admin_username      = var.admin_username
+  admin_password      = var.admin_password
+  disable_password_authentication = false
+  network_interface_ids = [
+    azurerm_network_interface.example.id,
+  ]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "18.04-LTS"
+    version   = "latest"
+  }
+
+provisioner "local-exec" {
+    command = "echo ${self.public_ip_address} > myfile"
+  }
+
+  provisioner "local-exec" {
+    command = "echo sleep 10 > script.sh ; echo echo Starting... >> script.sh ; echo sleep 10 >> script.sh ; echo echo I am     coming from script >> script.sh ; echo sleep 10 >> script.sh ; echo echo Finishing... >> script.sh "
+  }
+
+  provisioner "file" {
+    source = "script.sh"
+    destination = "/tmp/script.sh"
+    connection {
+      type = "ssh"
+      user = var.admin_username
+      password = var.admin_password
+      host = self.public_ip_address
+    }
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "chmod  x /tmp/script.sh",
+      "/bin/sh /tmp/script.sh",
+    ]
+    connection {
+      type = "ssh"
+      user = var.admin_username
+      password = var.admin_password
+      host = self.public_ip_address
+    }
+  }
+}
+
+resource "azurerm_managed_disk" "example" {
+    name                 = "raviraj-disk"
+    location             = azurerm_resource_group.example.location
+    resource_group_name  = azurerm_resource_group.example.name
+    storage_account_type = "Standard_LRS"
+    create_option        = "Empty"
+    disk_size_gb         = "1"
+  }
+
+[root@master azure_vm_remotestate]# cat vars.tf
+variable "client_id" {
+  default = "da7f7cdf-7635-424a-b0ea-dfe73d494f0b"
+}
+
+variable "client_certificate_path" {
+  default = "/terafom_lab_26062023/terraform_azure_access_26062023/mycert.pfx"
+}
+
+variable "tenant_id" {
+  default = "df8af829-df8a-41fe-8679-3e0a616165c5"
+}
+
+variable "subscription_id" {
+  default = "e7f340c5-89ac-403d-82ed-0571261dea04"
+}
+
+variable "prefix" {
+  default = "raviraj"
+}
+
+variable "location" {
+  default = "Central India"
+}
+
+variable "size" {
+  default = "Standard_F2"
+}
+
+variable "admin_username" {
+  default = "adminuser"
+}
+
+variable "admin_password" {
+  default = "P@ssw0rd1"
+}
+[root@master azure_vm_remotestate]# cd ..
+[root@master terafom_lab_26062023]# cd azure_vm_template
+[root@master azure_vm_template]# ls
+main.tf  myenv  myfile  out.tf  provider.tf  script.sh  terraform.tfstate  terraform.tfstate.backup  vars.tf
+[root@master azure_vm_template]# cat main.tf
+#Data Source
+data "template_file" "env" {
+  template = file("${path.module}/myenv")
+  #template =  file("/root/ibm-terraform-26062023/azure_vm_template/myenv")
+}
+
+resource "azurerm_resource_group" "example" {
+  count = "${ trimspace(data.template_file.env.rendered) == "prd" ? 2 : trimspace(data.template_file.env.rendered) == "dev"     ? 1 : 0 }"
+  name  =   "${var.prefix}-${count.index}-rg"
+  location = var.location
+}
+
+resource "azurerm_virtual_network" "example" {
+  count = "${ trimspace(data.template_file.env.rendered) == "prd" ? 2 : trimspace(data.template_file.env.rendered) == "dev"     ? 1 : 0 }"
+  name                = "${var.prefix}-${count.index}-vn"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.example[count.index].location
+  resource_group_name = azurerm_resource_group.example[count.index].name
+}
+
+resource "azurerm_subnet" "example" {
+  count = "${ trimspace(data.template_file.env.rendered) == "prd" ? 2 : trimspace(data.template_file.env.rendered) == "dev"     ? 1 : 0 }"
+  name                 = "${var.prefix}-${count.index}-sn"
+  resource_group_name  = azurerm_resource_group.example[count.index].name
+  virtual_network_name = azurerm_virtual_network.example[count.index].name
+  address_prefixes     = ["10.0.2.0/24"]
+}
+
+resource "azurerm_public_ip" "example" {
+  count = "${ trimspace(data.template_file.env.rendered) == "prd" ? 2 : trimspace(data.template_file.env.rendered) == "dev"     ? 1 : 0 }"
+  name                = "${var.prefix}-${count.index}-pip"
+  resource_group_name = azurerm_resource_group.example[count.index].name
+  location            = azurerm_resource_group.example[count.index].location
+  allocation_method   = "Static"
+}
+
+resource "azurerm_network_interface" "example" {
+  count = "${ trimspace(data.template_file.env.rendered) == "prd" ? 2 : trimspace(data.template_file.env.rendered) == "dev"     ? 1 : 0 }"
+  name                = "${var.prefix}-${count.index}-nic"
+  location            = azurerm_resource_group.example[count.index].location
+  resource_group_name = azurerm_resource_group.example[count.index].name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.example[count.index].id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.example[count.index].id
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "example" {
+  count = "${ trimspace(data.template_file.env.rendered) == "prd" ? 2 : trimspace(data.template_file.env.rendered) == "dev"     ? 1 : 0 }"
+  name                = "${var.prefix}-${count.index}-vm"
+  resource_group_name = azurerm_resource_group.example[count.index].name
+  location            = azurerm_resource_group.example[count.index].location
+  size                = "${ trimspace(data.template_file.env.rendered) == "prd" ? "Standard_F2" : trimspace(data.template_fi    le.env.rendered) == "dev" ? "Standard_F1" : "Standard_B1s" }"
+  admin_username      = var.admin_username
+  admin_password      = var.admin_password
+  disable_password_authentication = false
+  network_interface_ids = [
+    azurerm_network_interface.example[count.index].id,
+  ]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "18.04-LTS"
+    version   = "latest"
+  }
+
+provisioner "local-exec" {
+    command = "echo ${self.public_ip_address} > myfile"
+  }
+
+  provisioner "local-exec" {
+    command = "echo sleep 10 > script.sh ; echo echo Starting... >> script.sh ; echo sleep 10 >> script.sh ; echo echo I am     coming from script >> script.sh ; echo sleep 10 >> script.sh ; echo echo Finishing... >> script.sh "
+  }
+
+  provisioner "file" {
+    source = "script.sh"
+    destination = "/tmp/script.sh"
+    connection {
+      type = "ssh"
+      user = var.admin_username
+      password = var.admin_password
+      host = self.public_ip_address
+    }
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "chmod +x /tmp/script.sh",
+      "/bin/sh /tmp/script.sh",
+    ]
+    connection {
+      type = "ssh"
+      user = var.admin_username
+      password = var.admin_password
+      host = self.public_ip_address
+    }
+  }
+}
+
+resource "azurerm_managed_disk" "example" {
+    count = "${ trimspace(data.template_file.env.rendered) == "prd" ? 2 : trimspace(data.template_file.env.rendered) == "dev    " ? 1 : 0 }"
+    name                 = "raviraj-disk"
+    location             = azurerm_resource_group.example[count.index].location
+    resource_group_name  = azurerm_resource_group.example[count.index].name
+    storage_account_type = "Standard_LRS"
+    create_option        = "Empty"
+    disk_size_gb         = "1"
+  }
+
+[root@master azure_vm_template]# cat myenv
+uat
+[root@master azure_vm_template]# cat vars.tf
+variable "client_id" {
+  default = "da7f7cdf-7635-424a-b0ea-dfe73d494f0b"
+}
+
+variable "client_certificate_path" {
+  default = "/terafom_lab_26062023/terraform_azure_access_26062023/mycert.pfx"
+}
+
+variable "tenant_id" {
+  default = "df8af829-df8a-41fe-8679-3e0a616165c5"
+}
+
+variable "subscription_id" {
+  default = "e7f340c5-89ac-403d-82ed-0571261dea04"
+}
+
+variable "prefix" {
+  default = "raviraj"
+}
+
+variable "location" {
+  default = "Central India"
+}
+
+variable "size" {
+  default = "Standard_F2"
+}
+
+variable "admin_username" {
+  default = "adminuser"
+}
+
+variable "admin_password" {
+  default = "P@ssw0rd1"
+}
+
+
+[root@master azure_vm_template]# cd ..
+[root@master terafom_lab_26062023]# cd azure_vm_vars
+[root@master azure_vm_vars]# ls
+main.tf  myfile  out.tf  provider.tf  script.sh  terraform.tfstate  terraform.tfstate.backup  vars.tf
+[root@master azure_vm_vars]# cat main.tf
+resource "azurerm_resource_group" "example" {
+  name  =   "${var.prefix}-rg"
+  location = var.location
+}
+
+resource "azurerm_virtual_network" "example" {
+  name                = "${var.prefix}-vn"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+}
+
+resource "azurerm_subnet" "example" {
+  name                 = "${var.prefix}-sn"
+  resource_group_name  = azurerm_resource_group.example.name
+  virtual_network_name = azurerm_virtual_network.example.name
+  address_prefixes     = ["10.0.2.0/24"]
+}
+
+resource "azurerm_public_ip" "example" {
+  name                = "${var.prefix}-pip"
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  allocation_method   = "Static"
+}
+
+resource "azurerm_network_interface" "example" {
+  name                = "${var.prefix}-nic"
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.example.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.example.id
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "example" {
+  name                = "${var.prefix}-vm"
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  size                = var.size
+  admin_username      = var.admin_username
+  admin_password      = var.admin_password
+  disable_password_authentication = false
+  network_interface_ids = [
+    azurerm_network_interface.example.id,
+  ]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "18.04-LTS"
+    version   = "latest"
+  }
+
+provisioner "local-exec" {
+    command = "echo ${self.public_ip_address} > myfile"
+  }
+
+  provisioner "local-exec" {
+    command = "echo sleep 10 > script.sh ; echo echo Starting... >> script.sh ; echo sleep 10 >> script.sh ; echo echo I am     coming from script >> script.sh ; echo sleep 10 >> script.sh ; echo echo Finishing... >> script.sh "
+  }
+
+  provisioner "file" {
+    source = "script.sh"
+    destination = "/tmp/script.sh"
+    connection {
+      type = "ssh"
+      user = var.admin_username
+      password = var.admin_password
+      host = self.public_ip_address
+    }
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "chmod  x /tmp/script.sh",
+      "/bin/sh /tmp/script.sh",
+    ]
+    connection {
+      type = "ssh"
+      user = var.admin_username
+      password = var.admin_password
+      host = self.public_ip_address
+    }
+  }
+}
+
+resource "azurerm_managed_disk" "example" {
+    name                 = "raviraj-disk"
+    location             = azurerm_resource_group.example.location
+    resource_group_name  = azurerm_resource_group.example.name
+    storage_account_type = "Standard_LRS"
+    create_option        = "Empty"
+    disk_size_gb         = "1"
+  }
+
+[root@master azure_vm_vars]# cat vars.tf
+variable "client_id" {
+  default = "da7f7cdf-7635-424a-b0ea-dfe73d494f0b"
+}
+
+variable "client_certificate_path" {
+  default = "/terafom_lab_26062023/terraform_azure_access_26062023/mycert.pfx"
+}
+
+variable "tenant_id" {
+  default = "df8af829-df8a-41fe-8679-3e0a616165c5"
+}
+
+variable "subscription_id" {
+  default = "e7f340c5-89ac-403d-82ed-0571261dea04"
+}
+
+variable "prefix" {
+  default = "raviraj"
+}
+
+variable "location" {
+  default = "Central India"
+}
+
+variable "size" {
+  default = "Standard_F2"
+}
+
+variable "admin_username" {
+  default = "adminuser"
+}
+
+variable "admin_password" {
+  default = "P@ssw0rd1"
+}
+[root@master azure_vm_vars]# cd ..
+[root@master terafom_lab_26062023]# cd azure_vm_workspace
+[root@master azure_vm_workspace]# ls
+main.tf  myfile  out.tf  provider.tf  script.sh  terraform.tfstate.d  vars.tf
+[root@master azure_vm_workspace]# cat main.tf
+resource "azurerm_resource_group" "example" {
+  name  =   "${var.prefix}-${terraform.workspace}-rg"
+  location = var.location
+}
+
+resource "azurerm_virtual_network" "example" {
+  name                = "${var.prefix}-${terraform.workspace}-vn"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+}
+
+resource "azurerm_subnet" "example" {
+  name                 = "${var.prefix}-${terraform.workspace}-sn"
+  resource_group_name  = azurerm_resource_group.example.name
+  virtual_network_name = azurerm_virtual_network.example.name
+  address_prefixes     = ["10.0.2.0/24"]
+}
+
+resource "azurerm_public_ip" "example" {
+  count = "${ terraform.workspace == "prd" ? 2 : terraform.workspace == "dev" ? 1 : 0 }"
+  name                = "${var.prefix}-${terraform.workspace}-${count.index}-pip"
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  allocation_method   = "Static"
+}
+
+resource "azurerm_network_interface" "example" {
+  count = "${ terraform.workspace == "prd" ? 2 : terraform.workspace == "dev" ? 1 : 0 }"
+  name                = "${var.prefix}-${terraform.workspace}-${count.index}-nic"
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.example.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.example[count.index].id
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "example" {
+  count = "${ terraform.workspace == "prd" ? 2 : terraform.workspace == "dev" ? 1 : 0 }"
+  name                = "${var.prefix}-${terraform.workspace}-${count.index}-vm"
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  size                = "${ terraform.workspace == "prd" ? "Standard_F2" : terraform.workspace == "dev" ? "Standard_F1" : "S    tandard_B1s" }"
+  admin_username      = var.admin_username
+  admin_password      = var.admin_password
+  disable_password_authentication = false
+  network_interface_ids = [
+    azurerm_network_interface.example[count.index].id,
+  ]
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "18.04-LTS"
+    version   = "latest"
+  }
+
+provisioner "local-exec" {
+    command = "echo ${self.public_ip_address} > myfile"
+  }
+
+  provisioner "local-exec" {
+    command = "echo sleep 10 > script.sh ; echo echo Starting... >> script.sh ; echo sleep 10 >> script.sh ; echo echo I am     coming from script >> script.sh ; echo sleep 10 >> script.sh ; echo echo Finishing... >> script.sh "
+  }
+
+  provisioner "file" {
+    source = "script.sh"
+    destination = "/tmp/script.sh"
+    connection {
+      type = "ssh"
+      user = var.admin_username
+      password = var.admin_password
+      host = self.public_ip_address
+    }
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "chmod  x /tmp/script.sh",
+      "/bin/sh /tmp/script.sh",
+    ]
+    connection {
+      type = "ssh"
+      user = var.admin_username
+      password = var.admin_password
+      host = self.public_ip_address
+    }
+  }
+}
+
+resource "azurerm_managed_disk" "example" {
+    name                 = "raviraj-disk"
+    location             = azurerm_resource_group.example.location
+    resource_group_name  = azurerm_resource_group.example.name
+    storage_account_type = "Standard_LRS"
+    create_option        = "Empty"
+    disk_size_gb         = "1"
+  }
+
+[root@master azure_vm_workspace]# cat provider.tf
+terraform {
+  required_providers {
+    azurerm = {
+      source = "hashicorp/azurerm"
+      version = "3.62.1"
+    }
+  }
+}
+
+provider "azurerm" {
+  features {}
+  client_id                   = var.client_id
+  client_certificate_path     = var.client_certificate_path
+  tenant_id                   = var.tenant_id
+  subscription_id             = var.subscription_id
+}
+[root@master azure_vm_workspace]# cat vars.tf
+variable "client_id" {
+  default = "da7f7cdf-7635-424a-b0ea-dfe73d494f0b"
+}
+
+variable "client_certificate_path" {
+  default = "/terafom_lab_26062023/terraform_azure_access_26062023/mycert.pfx"
+}
+
+variable "tenant_id" {
+  default = "df8af829-df8a-41fe-8679-3e0a616165c5"
+}
+
+variable "subscription_id" {
+  default = "e7f340c5-89ac-403d-82ed-0571261dea04"
+}
+
+variable "prefix" {
+  default = "raviraj-USA"
+}
+
+variable "location" {
+  default = "Central India"
+}
+
+variable "size" {
+  default = "Standard_F2"
+}
+
+variable "admin_username" {
+  default = "adminuser"
+}
+
+variable "admin_password" {
+  default = "P@ssw0rd1"
+}
+[root@master azure_vm_workspace]# cd ../terraform_azure_module
+[root@master terraform_azure_module]# ls
+module_calling  vmcreation
+[root@master terraform_azure_module]# cd module_calling
+[root@master module_calling]# ls
+main.tf  myfile  script.sh  terraform.tfstate  terraform.tfstate.backup
+[root@master module_calling]# cat main.tf
+module "mymodule" {
+ source = "/terafom_lab_26062023/terraform_azure_module/vmcreation"
+ size = "Standard_F1"
+}
+
+output "MyPublicIPwhileCalling" {
+  value = module.mymodule.MyPublicIP
+}
+[root@master module_calling]# cd ../vmcreation/
+[root@master vmcreation]# ls
+main.tf  out.tf  provider.tf  vars.tf
+[root@master vmcreation]# cat main.tf
+resource "azurerm_resource_group" "example" {
+  name  =   "${var.prefix}-rg"
+  location = var.location
+}
+
+resource "azurerm_virtual_network" "example" {
+  name                = "${var.prefix}-vn"
+  address_space       = ["10.0.0.0/16"]
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+}
+
+resource "azurerm_subnet" "example" {
+  name                 = "${var.prefix}-sn"
+  resource_group_name  = azurerm_resource_group.example.name
+  virtual_network_name = azurerm_virtual_network.example.name
+  address_prefixes     = ["10.0.2.0/24"]
+}
+
+resource "azurerm_public_ip" "example" {
+  name                = "${var.prefix}-pip"
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  allocation_method   = "Static"
+}
+
+resource "azurerm_network_interface" "example" {
+  name                = "${var.prefix}-nic"
+  location            = azurerm_resource_group.example.location
+  resource_group_name = azurerm_resource_group.example.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.example.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.example.id
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "example" {
+  name                = "${var.prefix}-vm"
+  resource_group_name = azurerm_resource_group.example.name
+  location            = azurerm_resource_group.example.location
+  size                = var.size
+  admin_username      = var.admin_username
+  admin_password      = var.admin_password
+  disable_password_authentication = false
+  network_interface_ids = [
+    azurerm_network_interface.example.id,
+  ]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "18.04-LTS"
+    version   = "latest"
+  }
+
+provisioner "local-exec" {
+    command = "echo ${self.public_ip_address} > myfile"
+  }
+
+  provisioner "local-exec" {
+    command = "echo sleep 10 > script.sh ; echo echo Starting... >> script.sh ; echo sleep 10 >> script.sh ; echo echo I am     coming from script >> script.sh ; echo sleep 10 >> script.sh ; echo echo Finishing... >> script.sh "
+  }
+
+  provisioner "file" {
+    source = "script.sh"
+    destination = "/tmp/script.sh"
+    connection {
+      type = "ssh"
+      user = var.admin_username
+      password = var.admin_password
+      host = self.public_ip_address
+    }
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "chmod  x /tmp/script.sh",
+      "/bin/sh /tmp/script.sh",
+    ]
+    connection {
+      type = "ssh"
+      user = var.admin_username
+      password = var.admin_password
+      host = self.public_ip_address
+    }
+  }
+}
+
+resource "azurerm_managed_disk" "example" {
+    name                 = "raviraj-disk"
+    location             = azurerm_resource_group.example.location
+    resource_group_name  = azurerm_resource_group.example.name
+    storage_account_type = "Standard_LRS"
+    create_option        = "Empty"
+    disk_size_gb         = "1"
+  }
+
+[root@master vmcreation]# cat out.tf
+output "MyPublicIP" {
+  value = "${azurerm_linux_virtual_machine.example.public_ip_address} and name is ${azurerm_linux_virtual_machine.example.na    me}"
+}
+
+[root@master vmcreation]# cat provider.tf
+terraform {
+  required_providers {
+    azurerm = {
+      source = "hashicorp/azurerm"
+      version = "3.62.1"
+    }
+  }
+}
+
+provider "azurerm" {
+  features {}
+  client_id                   = var.client_id
+  client_certificate_path     = var.client_certificate_path
+  tenant_id                   = var.tenant_id
+  subscription_id             = var.subscription_id
+}
+[root@master vmcreation]# cat vars.tf
+variable "client_id" {
+  default = "da7f7cdf-7635-424a-b0ea-dfe73d494f0b"
+}
+
+variable "client_certificate_path" {
+  default = "/terafom_lab_26062023/terraform_azure_access_26062023/mycert.pfx"
+}
+
+variable "tenant_id" {
+  default = "df8af829-df8a-41fe-8679-3e0a616165c5"
+}
+
+variable "subscription_id" {
+  default = "e7f340c5-89ac-403d-82ed-0571261dea04"
+}
+
+variable "prefix" {
+  default = "raviraj"
+}
+
+variable "location" {
+  default = "Central India"
+}
+
+variable "size" {
+  default = "Standard_F2"
+}
+
+variable "admin_username" {
+  default = "adminuser"
+}
+
+variable "admin_password" {
+  default = "P@ssw0rd1"
+}
+[root@master vmcreation]#
+[root@master vmcreation]#
